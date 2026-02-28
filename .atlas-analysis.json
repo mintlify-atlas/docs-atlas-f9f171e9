@@ -1,0 +1,57 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Django Admin Tabs",
+  "projectDescription": "Powerful tabbed admins and nested changelists using plain Django admin classes without JavaScript.",
+  "theme": "linden",
+  "primaryColor": "#0C4B33",
+  "lightColor": "#44B78B",
+  "darkColor": "#092E20",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Core Concepts",
+        "pages": [
+          "concepts/admin-tab",
+          "concepts/admin-changelist-tab",
+          "concepts/tabbed-model-admin"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/admin-tab",
+          "api/admin-changelist-tab",
+          "api/tabbed-model-admin"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/examples",
+          "guides/compatibility",
+          "guides/development"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Tabbed admin interfaces without JavaScript",
+    "Nested changelists filtered by parent objects",
+    "Seamless integration with existing Django admin classes",
+    "Support for inlines and custom forms",
+    "Compatible with django-object-actions"
+  ],
+  "publicApiSurface": [
+    "AdminTab",
+    "AdminChangeListTab",
+    "TabbedModelAdmin"
+  ]
+}
