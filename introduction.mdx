@@ -1,0 +1,137 @@
+---
+title: Django Admin Tabs
+description: Powerful tabbed admins and nested changelists using plain Django admin classes without JavaScript
+---
+
+## Welcome to Django Admin Tabs
+
+Django Admin Tabs provides a powerful way to organize your Django admin interfaces with tabs and nested changelists - all without requiring any JavaScript. Build complex admin interfaces using familiar Django admin classes while maintaining a clean, organized user experience.
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Get started by installing Django Admin Tabs with pip or poetry
+  </Card>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Build your first tabbed admin interface in minutes
+  </Card>
+  <Card
+    title="AdminTab"
+    icon="window"
+    href="/concepts/admin-tab"
+  >
+    Learn about basic admin tabs for splitting forms into separate views
+  </Card>
+  <Card
+    title="AdminChangeListTab"
+    icon="list"
+    href="/concepts/admin-changelist-tab"
+  >
+    Discover nested changelists filtered by parent objects
+  </Card>
+</CardGroup>
+
+## What is Django Admin Tabs?
+
+Django Admin Tabs extends Django's built-in admin interface to support tabbed navigation and nested changelists. Instead of displaying all fields and related objects on a single page, you can organize them into logical tabs that load independently.
+
+Each tab is rendered at a separate URL and saves independently from other tabs. This approach provides better organization for complex models without requiring custom JavaScript or frontend frameworks.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="No JavaScript Required" icon="code">
+    Built entirely with Django's admin classes and templates - no custom JavaScript needed
+  </Card>
+  <Card title="Nested Changelists" icon="filter">
+    Display filtered changelists for related models within parent model tabs
+  </Card>
+  <Card title="Seamless Integration" icon="puzzle-piece">
+    Works with existing Django admin classes, inlines, and custom forms
+  </Card>
+  <Card title="Library Compatibility" icon="handshake">
+    Compatible with popular admin libraries like django-object-actions
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+Django Admin Tabs is perfect for:
+
+- **Complex models with many fields**: Split large forms into logical sections across multiple tabs
+- **Parent-child relationships**: Display related objects in nested changelists filtered by the parent
+- **Multi-step workflows**: Guide users through data entry in a structured, step-by-step manner
+- **Organized admin interfaces**: Keep your admin clean and focused by separating concerns across tabs
+
+## How It Works
+
+Django Admin Tabs provides three main components:
+
+1. **`AdminTab`** - A standard Django `ModelAdmin` that can be used as a tab in a tabbed interface
+2. **`AdminChangeListTab`** - A specialized admin class that renders a changelist filtered by a parent object
+3. **`TabbedModelAdmin`** - The main admin class that orchestrates tabs and handles navigation
+
+<Tip>
+All tab classes work as regular Django admin classes, so you can use standard Django admin features like `fields`, `inlines`, `list_display`, `list_filter`, and more.
+</Tip>
+
+## Example Preview
+
+Here's a quick preview of what you can build with Django Admin Tabs:
+
+```python
+from django.contrib import admin
+from django_admin_tabs import AdminTab, AdminChangeListTab, TabbedModelAdmin
+
+class PollAdminStep(AdminTab, admin.ModelAdmin):
+    admin_tab_name = "Poll"
+    fields = ("question",)
+    inlines = (ChoiceInline,)
+
+class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Answers"
+    model = Answer
+    fk_field = "choice__poll"
+    parent_model = Poll
+    list_display = ("timestamp", "choice")
+
+@admin.register(Poll)
+class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [
+        PollAdminStep,
+        AnswerAdmin,
+    ]
+```
+
+This creates a Poll admin with two tabs: one for editing the poll itself, and another showing all answers related to that poll.
+
+## Requirements
+
+- **Python**: 3.8 or higher
+- **Django**: 3.2 or higher
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Install Django Admin Tabs"
+    icon="download"
+    href="/installation"
+  >
+    Follow the installation guide to add Django Admin Tabs to your project
+  </Card>
+  <Card
+    title="Follow the Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Build your first tabbed admin interface with our step-by-step guide
+  </Card>
+</CardGroup>

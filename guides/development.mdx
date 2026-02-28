@@ -1,0 +1,263 @@
+---
+title: Development Setup
+description: Set up your development environment, run the example project, run tests, and contribute to Django Admin Tabs
+---
+
+## Getting Started with Development
+
+Django Admin Tabs uses Docker for development to ensure a consistent environment across all contributors.
+
+### Prerequisites
+
+- Git
+- Docker and Docker Compose
+- Make (optional, but recommended)
+
+## Setting Up the Development Environment
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone git@github.com:mehmetakyuz/django-admin-tabs.git
+    cd django-admin-tabs
+    ```
+  </Step>
+
+  <Step title="Start the development environment">
+    ```bash
+    make dev
+    ```
+
+    This command will:
+    - Build the Docker container
+    - Install all dependencies
+    - Start the Django development server
+    - Make the example project available at http://localhost:8000
+  </Step>
+
+  <Step title="Access the example project">
+    Once the containers are running, visit http://localhost:8000/admin in your browser to see the example polls application with tabbed admin.
+  </Step>
+</Steps>
+
+<Note>
+  The `make dev` command uses Docker Compose to set up the entire environment. You don't need to manually install Python, Django, or any dependencies.
+</Note>
+
+## Running the Example Project
+
+The example project is a complete Django application demonstrating Django Admin Tabs with a Poll/Choice/Answer voting system.
+
+### Creating a Superuser
+
+To log into the admin interface, you'll need a superuser account:
+
+```bash
+make superuser
+```
+
+Follow the prompts to create your admin account.
+
+### Example Project Structure
+
+```
+example/
+├── __init__.py
+├── settings.py       # Django settings with django_admin_tabs installed
+├── urls.py           # URL configuration
+├── wsgi.py          # WSGI application
+└── polls/           # Example app
+    ├── models.py    # Poll, Choice, and Answer models
+    └── admin.py     # Tabbed admin configuration
+```
+
+### Key Features to Explore
+
+<Tip>
+  After creating a superuser and logging in, try these features:
+  
+  1. Create a new Poll with the question field
+  2. Add Choices using the inline form on the Poll tab
+  3. Switch to the Answers tab to see the nested changelist
+  4. Add Answers and notice how the choice dropdown only shows choices from the current poll
+</Tip>
+
+## Running Tests
+
+The test suite ensures Django Admin Tabs works correctly across different Django versions.
+
+### Run All Tests
+
+```bash
+make test
+```
+
+This command runs the full test suite inside the Docker container:
+
+```bash
+docker exec -it django-admin-tabs python manage.py test django_admin_tabs
+```
+
+### Manual Testing
+
+For manual testing and debugging:
+
+<Steps>
+  <Step title="Access the container shell">
+    ```bash
+    make shell
+    ```
+    This opens a Django shell inside the running container.
+  </Step>
+
+  <Step title="Run specific tests">
+    ```bash
+    docker exec -it django-admin-tabs python manage.py test django_admin_tabs.tests.specific_test
+    ```
+  </Step>
+</Steps>
+
+## Development Workflow
+
+### Making Changes
+
+<Steps>
+  <Step title="Create a branch">
+    ```bash
+    git checkout -b feature/my-new-feature
+    ```
+  </Step>
+
+  <Step title="Make your changes">
+    Edit files in the `django_admin_tabs/` directory. The development server will automatically reload when you save files.
+  </Step>
+
+  <Step title="Run pre-commit hooks">
+    ```bash
+    make pre-commit
+    ```
+    
+    This runs code formatting and linting checks using the configured pre-commit hooks.
+  </Step>
+
+  <Step title="Test your changes">
+    ```bash
+    make test
+    ```
+  </Step>
+</Steps>
+
+### Available Make Commands
+
+| Command | Description |
+|---------|-------------|
+| `make dev` | Start development containers with the example project |
+| `make test` | Run the test suite |
+| `make superuser` | Create a Django superuser |
+| `make shell` | Open a Django shell |
+| `make migrate` | Run database migrations |
+| `make makemigrations` | Create new migrations |
+| `make showmigrations` | Show migration status |
+| `make pre-commit` | Run pre-commit hooks (formatting, linting) |
+| `make cleanpy` | Remove .pyc files and __pycache__ |
+| `make clean` | Full cleanup including virtual environment |
+
+## Project Structure
+
+```
+django-admin-tabs/
+├── django_admin_tabs/       # Main package
+│   ├── __init__.py
+│   ├── admin.py            # AdminTab, AdminChangeListTab, TabbedModelAdmin
+│   ├── templates/          # Admin templates
+│   └── static/             # CSS files
+├── example/                # Example Django project
+│   └── polls/             # Example polls app
+├── docs/                   # Documentation
+├── tests/                  # Test suite (if separate from main package)
+├── Makefile               # Development commands
+├── docker-compose.yml     # Docker configuration
+├── Dockerfile             # Container definition
+├── pyproject.toml         # Poetry dependencies and project metadata
+├── setup.py               # Package setup
+└── README.md              # Project README
+```
+
+## Code Quality Tools
+
+The project uses several tools to maintain code quality:
+
+### Pre-commit Hooks
+
+Pre-commit hooks are configured in `.pre-commit-config.yaml` and run automatically before each commit. They include:
+
+- **Ruff**: Fast Python linter and formatter
+- **Trailing whitespace removal**
+- **End-of-file fixes**
+- **YAML validation**
+
+Install pre-commit hooks locally:
+
+```bash
+pre-commit install
+```
+
+### Ruff Configuration
+
+Ruff is used for both linting and formatting. Configuration is in `pyproject.toml`.
+
+## Contributing Guidelines
+
+### Before Submitting a PR
+
+<Steps>
+  <Step title="Ensure tests pass">
+    ```bash
+    make test
+    ```
+    All tests must pass before submitting a pull request.
+  </Step>
+
+  <Step title="Run pre-commit hooks">
+    ```bash
+    make pre-commit
+    ```
+    Code must pass all linting and formatting checks.
+  </Step>
+
+  <Step title="Test with the example project">
+    Verify your changes work correctly with the example polls application:
+    ```bash
+    make dev
+    # Visit http://localhost:8000/admin and test manually
+    ```
+  </Step>
+
+  <Step title="Update documentation">
+    If you've added features or changed behavior, update the relevant documentation.
+  </Step>
+</Steps>
+
+### Pull Request Process
+
+1. **Fork the repository** on GitHub
+2. **Create a feature branch** from `main`
+3. **Make your changes** with clear, descriptive commits
+4. **Push to your fork** and submit a pull request
+5. **Respond to review feedback** from maintainers
+
+<Tip>
+  Write clear commit messages that explain what changed and why. Good commit messages help reviewers understand your changes and make the project history more useful.
+</Tip>
+
+## Getting Help
+
+If you run into issues during development:
+
+1. Check the [GitHub Issues](https://github.com/mehmetakyuz/django-admin-tabs/issues) for similar problems
+2. Review the example project in the `example/` directory
+3. Ask questions by opening a new issue with the "question" label
+
+## License
+
+Django Admin Tabs is licensed under the Apache Software License. See the `LICENSE` file for details.

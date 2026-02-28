@@ -1,0 +1,323 @@
+---
+title: TabbedModelAdmin
+description: API reference for the TabbedModelAdmin mixin that enables tabbed interfaces in Django admin.
+---
+
+## Class Signature
+
+```python
+class TabbedModelAdmin
+```
+
+`TabbedModelAdmin` is a mixin class that extends Django's ModelAdmin to provide a tabbed interface. It manages navigation between tabs and handles URL routing for nested views.
+
+<Note>
+  Use this as a mixin with Django's `admin.ModelAdmin`. The order matters: `TabbedModelAdmin` should come before `admin.ModelAdmin` in the inheritance list.
+</Note>
+
+## Class Attributes
+
+<ParamField path="tabs_path" type="str" default="'tabs'">
+  The URL path segment used for tab navigation. This appears in URLs like `/admin/app/model/1/tabs/details/`.
+</ParamField>
+
+<ParamField path="admin_tabs" type="List[type]" default="[]">
+  List of tab classes (either `AdminTab` or `AdminChangeListTab` subclasses) that define the available tabs for this admin interface.
+</ParamField>
+
+## Methods
+
+### get_admin_tabs()
+
+```python
+def get_admin_tabs(self, request, object_id) -> List[AdminTab]
+```
+
+Hook to dynamically return the enabled tabs based on request or object state.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` (`str`) - The ID of the object being viewed
+
+**Returns:** `List[type]` - List of tab classes
+
+**Example:**
+```python
+def get_admin_tabs(self, request, object_id):
+    tabs = [DetailsTab]
+    if request.user.has_perm('app.view_advanced'):
+        tabs.append(AdvancedTab)
+    return tabs
+```
+
+---
+
+### get_initial_tab()
+
+```python
+def get_initial_tab(self, request, object_id) -> AdminTab
+```
+
+Hook to return the initial tab to load after adding a new object or when accessing the change view.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` (`str`) - The ID of the object being viewed
+
+**Returns:** `AdminTab` - An instantiated tab object
+
+**Default behavior:** Returns an instance of the first tab in `admin_tabs`.
+
+**Example:**
+```python
+def get_initial_tab(self, request, object_id):
+    # Always start with the summary tab
+    return SummaryTab(self.model, self.admin_site)
+```
+
+---
+
+### get_admin_tab()
+
+```python
+def get_admin_tab(self, request, object_id, step: str)
+```
+
+Retrieve a specific tab instance by its slug.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` (`str`) - The ID of the parent object
+- `step` (`str`) - The tab slug (URL-safe identifier)
+
+**Returns:** Instance of the requested tab class
+
+**Raises:** `Http404` if the tab slug is not found
+
+<Note>
+  This method automatically sets `parent_object` and `parent_model` attributes on the tab instance.
+</Note>
+
+---
+
+### change_view()
+
+```python
+def change_view(self, request, object_id, form_url="", extra_context=None)
+```
+
+Overrides Django's default change_view to redirect to the initial tab.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` (`str`) - The ID of the object being viewed
+- `form_url` (`str`) - Optional form URL
+- `extra_context` (`dict | None`) - Optional additional context
+
+**Returns:** `HttpResponseRedirect` - Redirect to the initial tab's URL
+
+---
+
+### get_context()
+
+```python
+def get_context(self, request, instance, step)
+```
+
+Builds the context dictionary for tab templates.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `instance` - The model instance being viewed
+- `step` (`str`) - The current tab slug
+
+**Returns:** `dict` - Context dictionary with the following keys:
+  - `instance_meta_opts` - Model meta options
+  - `admin_tabs` - List of all tab instances
+  - `current_tab` - The current tab slug
+  - `anchor` - The model instance (for navigation)
+
+---
+
+### response_add()
+
+```python
+def response_add(self, request, obj, *args, **kwargs)
+```
+
+Overrides the response after adding a new object to redirect to the tabbed interface.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `obj` - The newly created object
+- `*args` - Additional positional arguments
+- `**kwargs` - Additional keyword arguments
+
+**Returns:** `HttpResponse` - Redirect to the change view (which redirects to initial tab)
+
+---
+
+### response_post_save_change()
+
+```python
+def response_post_save_change(self, request, obj)
+```
+
+Overrides the response after saving changes to stay on the current tab.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `obj` - The modified object
+
+**Returns:** `HttpResponseRedirect` - Redirect to the current URL (refreshes the page)
+
+---
+
+### get_urls()
+
+```python
+def get_urls(self)
+```
+
+Extends Django's URL patterns with tab-specific routes.
+
+**Returns:** `List[URLPattern]` - Combined list of tab URLs and base admin URLs
+
+**URL Patterns Created:**
+
+| Pattern | Name | View | Description |
+|---------|------|------|-------------|
+| `<object_id>/tabs/<step>/<nested_object_id>/change/` | `{app}_{model}_tab_change` | `nested_change_view` | Change a nested object |
+| `<object_id>/tabs/<step>/add/` | `{app}_{model}_tab_add` | `nested_add_view` | Add a nested object |
+| `<object_id>/tabs/<step>/<nested_object_id>/delete/` | `{app}_{model}_tab_delete` | `nested_delete_view` | Delete a nested object |
+| `<object_id>/tabs/<step>/` | `{app}_{model}_step` | `tab_change_view` | View a specific tab |
+
+<Note>
+  The `tabs` segment can be customized using the `tabs_path` attribute.
+</Note>
+
+---
+
+### tab_change_view()
+
+```python
+def tab_change_view(self, request, object_id, step)
+```
+
+Handles requests to view a specific tab.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` (`str`) - The ID of the parent object
+- `step` (`str`) - The tab slug
+
+**Returns:** `HttpResponse` - The rendered tab view
+
+---
+
+### nested_change_view()
+
+```python
+def nested_change_view(self, request, object_id, step, nested_object_id=None)
+```
+
+Handles requests to change a nested object within a changelist tab.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` (`str`) - The ID of the parent object
+- `step` (`str`) - The tab slug
+- `nested_object_id` (`str | None`) - The ID of the nested object
+
+**Returns:** `HttpResponse` - The rendered change form
+
+<Note>
+  This view automatically hides the delete button by setting `show_delete` to `False` in the context.
+</Note>
+
+---
+
+### nested_add_view()
+
+```python
+def nested_add_view(self, request, object_id, step)
+```
+
+Handles requests to add a new nested object within a changelist tab.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` (`str`) - The ID of the parent object
+- `step` (`str`) - The tab slug
+
+**Returns:** `HttpResponse` - The rendered add form
+
+---
+
+### nested_delete_view()
+
+```python
+def nested_delete_view(self, request, object_id, step, nested_object_id=None)
+```
+
+Handles requests to delete a nested object within a changelist tab.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` (`str`) - The ID of the parent object
+- `step` (`str`) - The tab slug
+- `nested_object_id` (`str | None`) - The ID of the nested object to delete
+
+**Returns:** `HttpResponse` - The rendered delete confirmation or redirect
+
+## Usage Example
+
+```python
+from django.contrib import admin
+from django_admin_tabs.admin import (
+    AdminTab,
+    AdminChangeListTab,
+    TabbedModelAdmin,
+)
+from .models import Product, Review
+
+class DetailsTab(AdminTab):
+    admin_tab_name = "Details"
+    fields = ['name', 'description', 'price']
+
+class ReviewsTab(AdminChangeListTab, admin.ModelAdmin):
+    model = Review
+    admin_tab_name = "Reviews"
+    fk_field = "product"
+    list_display = ['author', 'rating', 'comment']
+
+class ProductAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [DetailsTab, ReviewsTab]
+    tabs_path = "sections"  # Custom URL segment
+    
+    def get_admin_tabs(self, request, object_id):
+        # Conditionally show tabs based on permissions
+        tabs = [DetailsTab]
+        if request.user.has_perm('app.view_review'):
+            tabs.append(ReviewsTab)
+        return tabs
+
+admin.site.register(Product, ProductAdmin)
+```
+
+## URL Structure
+
+For a Product model with ID 42 and a "reviews" tab:
+
+```
+/admin/app/product/42/                          → Redirects to initial tab
+/admin/app/product/42/tabs/details/             → Details tab
+/admin/app/product/42/tabs/reviews/             → Reviews changelist tab
+/admin/app/product/42/tabs/reviews/add/         → Add new review
+/admin/app/product/42/tabs/reviews/5/change/    → Edit review #5
+/admin/app/product/42/tabs/reviews/5/delete/    → Delete review #5
+```
+
+<Warning>
+  Always place `TabbedModelAdmin` before `admin.ModelAdmin` in the inheritance chain to ensure proper method resolution order.
+</Warning>

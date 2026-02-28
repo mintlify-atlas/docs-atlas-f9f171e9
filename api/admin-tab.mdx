@@ -1,0 +1,133 @@
+---
+title: AdminTab
+description: API reference for the AdminTab class that provides tabbed admin interfaces for Django models.
+---
+
+## Class Signature
+
+```python
+class AdminTab(admin.ModelAdmin)
+```
+
+`AdminTab` extends Django's `ModelAdmin` to provide a tabbed interface within the Django admin. It's designed to be used with `TabbedModelAdmin` to organize model change views into multiple tabs.
+
+## Class Attributes
+
+<ParamField path="model" type="Model | None" default="None">
+  Optionally override the model for this admin tab. If not specified, inherits from the parent `TabbedModelAdmin`.
+</ParamField>
+
+<ParamField path="admin_tab_name" type="str | None" default="None">
+  Optionally specify a custom display name for this admin tab. If not provided, the class name will be used.
+</ParamField>
+
+<ParamField path="change_form_template" type="str" default="'admin/django_admin_tabs/tab_change_form.html'">
+  The template used for rendering the change form within a tab.
+</ParamField>
+
+<ParamField path="change_list_template" type="str" default="'admin/django_admin_tabs/tab_change_list.html'">
+  The template used for rendering the change list within a tab.
+</ParamField>
+
+## Methods
+
+### get_tab_name()
+
+```python
+def get_tab_name(self)
+```
+
+Returns the display name for this admin tab.
+
+**Returns:** `str` - The tab name from `admin_tab_name` if set, otherwise the class name.
+
+**Example:**
+```python
+class DetailsTab(AdminTab):
+    admin_tab_name = "Details"
+    
+tab = DetailsTab()
+tab.get_tab_name()  # Returns: "Details"
+```
+
+---
+
+### get_tab_slug()
+
+```python
+def get_tab_slug(self)
+```
+
+Returns a URL-safe slug for this admin tab, used in URL routing.
+
+**Returns:** `str` - A slugified version of the tab name.
+
+**Example:**
+```python
+class DetailsTab(AdminTab):
+    admin_tab_name = "Details & Settings"
+    
+tab = DetailsTab()
+tab.get_tab_slug()  # Returns: "details-settings"
+```
+
+---
+
+### process_view()
+
+```python
+def process_view(self, request, object_id, extra_context=None)
+```
+
+Processes the view request for this tab. This method is called by `TabbedModelAdmin` when navigating to a tab.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` - The ID of the object being viewed
+- `extra_context` (`dict | None`) - Optional additional context to pass to the template
+
+**Returns:** `HttpResponse` - The response from `change_view()`
+
+<Note>
+  This method delegates to Django's standard `change_view()` method, allowing tabs to behave like regular ModelAdmin views.
+</Note>
+
+---
+
+### get_model_perms()
+
+```python
+def get_model_perms(self, request)
+```
+
+Returns an empty dictionary to prevent this tab from appearing in the Django admin index.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+
+**Returns:** `dict` - An empty dictionary
+
+<Note>
+  Tabs are accessed through their parent `TabbedModelAdmin` and should not appear as standalone entries in the admin index.
+</Note>
+
+## Usage Example
+
+```python
+from django.contrib import admin
+from django_admin_tabs.admin import AdminTab, TabbedModelAdmin
+from .models import Product
+
+class DetailsTab(AdminTab):
+    admin_tab_name = "Product Details"
+    fields = ['name', 'description', 'price']
+
+class InventoryTab(AdminTab):
+    admin_tab_name = "Inventory"
+    fields = ['stock_count', 'warehouse_location']
+
+class ProductAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [DetailsTab, InventoryTab]
+
+admin.site.register(Product, ProductAdmin)
+```

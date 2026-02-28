@@ -1,0 +1,127 @@
+---
+title: Installation
+description: Install Django Admin Tabs and configure it in your Django project
+---
+
+## Install the Package
+
+<Steps>
+  <Step title="Install via pip or poetry">
+    Choose your preferred package manager to install Django Admin Tabs:
+
+    <CodeGroup>
+      ```bash pip
+      pip install django-admin-tabs
+      ```
+
+      ```bash poetry
+      poetry add django-admin-tabs
+      ```
+    </CodeGroup>
+
+    The package includes all necessary templates and CSS static files.
+  </Step>
+
+  <Step title="Add to INSTALLED_APPS">
+    Add `django_admin_tabs` to your `INSTALLED_APPS` setting in your Django settings file:
+
+    ```python settings.py
+    INSTALLED_APPS = [
+        'django.contrib.admin',
+        'django.contrib.auth',
+        'django.contrib.contenttypes',
+        'django.contrib.sessions',
+        'django.contrib.messages',
+        'django.contrib.staticfiles',
+        
+        # Add django_admin_tabs
+        'django_admin_tabs',
+        
+        # Your other apps
+        'myapp',
+    ]
+    ```
+
+    <Note>
+      Make sure to place `django_admin_tabs` before your custom apps to ensure proper template resolution.
+    </Note>
+  </Step>
+
+  <Step title="Collect static files (production only)">
+    If you're deploying to production, collect static files to ensure the CSS files are properly served:
+
+    ```bash
+    python manage.py collectstatic
+    ```
+
+    <Tip>
+      This step is only necessary for production deployments. During development, Django's `runserver` command automatically serves static files.
+    </Tip>
+  </Step>
+
+  <Step title="Verify installation">
+    You can verify the installation by checking if the package is importable:
+
+    ```bash
+    python manage.py shell
+    ```
+
+    ```python
+    >>> from django_admin_tabs import AdminTab, AdminChangeListTab, TabbedModelAdmin
+    >>> print("Django Admin Tabs installed successfully!")
+    ```
+
+    If no errors occur, the installation is complete.
+  </Step>
+</Steps>
+
+## Compatibility
+
+### Python and Django Versions
+
+Django Admin Tabs requires:
+
+- **Python**: 3.8 or higher
+- **Django**: 3.2 or higher
+
+<Warning>
+  Older versions of Python or Django are not supported. Ensure your environment meets these minimum requirements before installing.
+</Warning>
+
+### Third-Party Admin Libraries
+
+Django Admin Tabs is compatible with popular Django admin extensions:
+
+- **[django-object-actions](https://pypi.org/project/django-object-actions/)**: Add custom actions to your admin interface
+
+<Note>
+  If you're using other admin libraries and encounter compatibility issues, please report them on the [GitHub repository](https://github.com/mehmetakyuz/django-admin-tabs/issues).
+</Note>
+
+## What's Included
+
+When you install Django Admin Tabs, you get:
+
+- **Three main classes**: `AdminTab`, `AdminChangeListTab`, and `TabbedModelAdmin`
+- **Custom templates**: Pre-built templates for tabbed interfaces
+- **CSS styles**: Styling that integrates seamlessly with Django's default admin theme
+- **No JavaScript dependencies**: Everything works with plain Django admin
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start Guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Learn how to create your first tabbed admin interface
+  </Card>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/concepts/admin-tab"
+  >
+    Understand the main components of Django Admin Tabs
+  </Card>
+</CardGroup>

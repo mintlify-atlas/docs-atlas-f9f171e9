@@ -1,0 +1,248 @@
+---
+title: AdminChangeListTab
+description: Display nested changelists of related models as tabs in Django admin
+---
+
+## What is AdminChangeListTab?
+
+`AdminChangeListTab` is a specialized class that creates a tab displaying a filtered changelist (list view) of related objects within a parent model's admin interface. Unlike `AdminTab` which shows forms, `AdminChangeListTab` shows a table of related records that can be added, edited, and managed inline.
+
+<Info>
+This allows you to work with related models without leaving the parent object's admin page, creating a seamless nested admin experience.
+</Info>
+
+## When to Use AdminChangeListTab
+
+Use `AdminChangeListTab` when you need to:
+
+- Display a list of related objects as a tab (e.g., all orders for a customer)
+- Manage one-to-many or many-to-many relationships in a separate tab
+- Filter and display objects related through foreign keys
+- Work with generic relations (using ContentType framework)
+- Provide full CRUD operations for related objects without page navigation
+
+<Tip>
+For displaying forms or different views of the same model, use `AdminTab` instead.
+</Tip>
+
+## Key Attributes
+
+<ParamField path="admin_tab_name" type="str" default="None">
+  The display name for the tab. If not specified, the class name will be used.
+</ParamField>
+
+<ParamField path="parent_model" type="Model" required>
+  The model class of the parent object this changelist is nested under. This is used for URL generation and context.
+</ParamField>
+
+<ParamField path="parent_object" type="Model instance" default="None">
+  The specific parent object instance. This is set automatically by `TabbedModelAdmin` at runtime.
+</ParamField>
+
+<ParamField path="fk_field" type="str" default="None">
+  The field path to filter the queryset for the changelist given the parent object. Supports full Django ORM paths like `"choice__poll"`.
+  
+  For more advanced filtering, override the `get_queryset()` method instead.
+</ParamField>
+
+<ParamField path="ct_field" type="str" default="content_type">
+  The field name for the ContentType foreign key when using generic relations. Only used if `fk_field` is not specified.
+</ParamField>
+
+<ParamField path="ct_fk_field" type="str" default="object_id">
+  The field name for the object ID when using generic relations. Only used if `fk_field` is not specified.
+</ParamField>
+
+<ParamField path="change_list_bulk_form" type="Form class" default="None">
+  Optional form class for bulk operations on the changelist. Enables custom bulk actions.
+</ParamField>
+
+## How Nested Changelists Work
+
+### Automatic Filtering
+
+When you define an `AdminChangeListTab`, it automatically filters the related model's queryset to show only objects related to the parent:
+
+```python
+def get_queryset(self, request):
+    """Hook to override queryset for the nested changelist."""
+    if self.fk_field:
+        filters = {self.fk_field: self.parent_object}
+    else:
+        # Generic relation fallback
+        filters = {
+            self.ct_field: ContentType.objects.get_for_model(self.parent_model),
+            self.ct_fk_field: self.parent_object.id,
+        }
+    return super().get_queryset(request).filter(**filters)
+```
+
+### Automatic Relationship Assignment
+
+When saving objects in a nested changelist, the parent relationship is automatically set:
+
+```python
+def save_model(self, request, obj, form, change):
+    if self.fk_field:
+        setattr(obj, self.fk_field, self.parent_object)
+    else:
+        setattr(obj, self.ct_fk_field.replace("_id", ""), self.parent_object)
+    obj.save()
+```
+
+## Code Example
+
+Here's a real example from the Django Admin Tabs source code:
+
+```python
+from django.contrib import admin
+from django_admin_tabs import AdminChangeListTab, TabbedModelAdmin
+from .models import Answer, Poll
+
+@admin.register(Answer)
+class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Answers"
+    model = Answer
+    fk_field = "choice__poll"  # Filter answers through choice to poll
+    parent_model = Poll
+    
+    # Standard Django admin configurations work here
+    date_hierarchy = "timestamp"
+    list_display = ("timestamp", "choice")
+    list_filter = ("choice",)
+    
+    def get_form(self, request, obj=None, **kwargs):
+        """Customize the form to only show choices from the parent poll."""
+        form = super().get_form(request, obj, **kwargs)
+        form.base_fields["choice"].queryset = self.parent_object.choice_set.all()
+        return form
+
+@admin.register(Poll)
+class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [
+        # Other tabs...
+        AnswerAdmin,
+    ]
+```
+
+In this example:
+
+- `AnswerAdmin` displays all answers related to a poll through the `choice__poll` relationship
+- The `fk_field` uses Django ORM path notation to traverse the relationship
+- The form is customized to only show choices from the current poll
+- All standard Django admin features like `date_hierarchy` and `list_display` work normally
+
+## Filtering by Parent Object
+
+### Simple Foreign Key
+
+For direct foreign key relationships:
+
+```python
+class CommentAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Comments"
+    model = Comment
+    fk_field = "article"  # Comment.article -> Article
+    parent_model = Article
+```
+
+### Traversing Relationships
+
+For relationships through intermediate models:
+
+```python
+class OrderItemAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Items"
+    model = OrderItem
+    fk_field = "order__customer"  # OrderItem.order.customer -> Customer
+    parent_model = Customer
+```
+
+### Generic Relations
+
+For generic foreign keys (without specifying `fk_field`):
+
+```python
+class AttachmentAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Attachments"
+    model = Attachment
+    parent_model = Article
+    # Uses ct_field="content_type" and ct_fk_field="object_id" by default
+```
+
+## Known Limitations
+
+<Warning>
+The delete button functionality in nested changelists has known issues due to Django admin URL routing constraints. When implementing `AdminChangeListTab`, be aware that the delete confirmation page may not work as expected.
+</Warning>
+
+### Workaround for Deletion
+
+To handle deletion in nested changelists, you can:
+
+1. Use bulk actions instead of individual delete buttons
+2. Override the `delete_view` method to customize behavior
+3. Implement custom delete actions in your changelist
+
+```python
+class MyChangeListTab(AdminChangeListTab, admin.ModelAdmin):
+    actions = ["delete_selected"]
+    
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        # Customize delete action behavior here
+        return actions
+```
+
+## Advanced Usage
+
+### Custom Queryset Filtering
+
+Override `get_queryset()` for complex filtering logic:
+
+```python
+class ActiveOrdersTab(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Active Orders"
+    model = Order
+    parent_model = Customer
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.filter(status="active", created_at__gte=timezone.now() - timedelta(days=30))
+```
+
+### Bulk Action Forms
+
+Add custom bulk operations with `change_list_bulk_form`:
+
+```python
+class BulkUpdateForm(forms.Form):
+    def __init__(self, parent_object, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parent_object = parent_object
+    
+    def save(self):
+        # Perform bulk operations
+        created, updated = 0, 0
+        # Your logic here
+        return created, updated
+
+class MyChangeListTab(AdminChangeListTab, admin.ModelAdmin):
+    change_list_bulk_form = BulkUpdateForm
+```
+
+## URL Routing
+
+`AdminChangeListTab` automatically generates URLs for:
+
+- Changelist view: `/admin/{app}/{model}/{id}/tabs/{tab}/`
+- Add view: `/admin/{app}/{model}/{id}/tabs/{tab}/add/`
+- Change view: `/admin/{app}/{model}/{id}/tabs/{tab}/{nested_id}/change/`
+- Delete view: `/admin/{app}/{model}/{id}/tabs/{tab}/{nested_id}/delete/`
+
+These URLs are managed by `TabbedModelAdmin` and handle all navigation automatically.
+
+## Related Concepts
+
+- [AdminTab](/concepts/admin-tab) - For custom form tabs instead of changelists
+- [TabbedModelAdmin](/concepts/tabbed-model-admin) - The parent admin class that orchestrates tabs

@@ -1,0 +1,348 @@
+---
+title: TabbedModelAdmin
+description: Orchestrate multiple tabs in Django admin to create powerful tabbed interfaces
+---
+
+## What is TabbedModelAdmin?
+
+`TabbedModelAdmin` is a mixin class that extends Django's `ModelAdmin` to provide a tabbed interface for your admin change forms. It acts as the orchestrator that manages multiple `AdminTab` and `AdminChangeListTab` instances, handles URL routing, and coordinates navigation between tabs.
+
+<Info>
+Think of `TabbedModelAdmin` as the container that holds and manages all your tabs, while `AdminTab` and `AdminChangeListTab` define what each individual tab displays.
+</Info>
+
+## When to Use TabbedModelAdmin
+
+Use `TabbedModelAdmin` when you need to:
+
+- Organize complex admin interfaces into logical sections
+- Display multiple related models in a single unified interface
+- Create multi-step workflows in the admin
+- Provide different views of the same object in separate tabs
+- Manage related objects without leaving the parent object's page
+
+<Tip>
+`TabbedModelAdmin` works without JavaScript, making it lightweight and compatible with any Django admin theme or customization.
+</Tip>
+
+## Key Attributes
+
+<ParamField path="admin_tabs" type="list" required>
+  A list of tab classes (`AdminTab` or `AdminChangeListTab` subclasses) that define the tabs to display. The order in this list determines the order tabs appear in the interface.
+  
+  ```python
+  admin_tabs = [
+      BasicInfoTab,
+      SettingsTab,
+      RelatedItemsTab,
+  ]
+  ```
+</ParamField>
+
+<ParamField path="tabs_path" type="str" default="tabs">
+  The URL path segment used for tab navigation. Change this if "tabs" conflicts with your URL structure.
+  
+  Default generates URLs like: `/admin/app/model/1/tabs/tab-name/`
+</ParamField>
+
+## Key Methods
+
+### get_admin_tabs(request, object_id)
+
+Hook to dynamically return the enabled tabs for a given object. Override this to show/hide tabs based on permissions, object state, or other conditions.
+
+```python
+def get_admin_tabs(self, request, object_id) -> List[AdminTab]:
+    """Hook to dynamically return the enabled tabs."""
+    return self.admin_tabs
+```
+
+**Example - Conditional Tabs:**
+
+```python
+class MyAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [BasicTab, AdvancedTab, AdminOnlyTab]
+    
+    def get_admin_tabs(self, request, object_id):
+        tabs = [BasicTab, AdvancedTab]
+        if request.user.is_superuser:
+            tabs.append(AdminOnlyTab)
+        return tabs
+```
+
+### get_initial_tab(request, object_id)
+
+Returns the first tab to display after creating a new object or navigating to the change view. By default, returns the first tab in `admin_tabs`.
+
+```python
+def get_initial_tab(self, request, object_id) -> AdminTab:
+    """Hook to return the initial tab to load."""
+    initial_step = self.admin_tabs[0]
+    return initial_step(initial_step.model or self.model, self.admin_site)
+```
+
+### get_admin_tab(request, object_id, step)
+
+Retrieves a specific tab instance by its slug. This method instantiates the tab class and sets up the parent object context.
+
+```python
+def get_admin_tab(self, request, object_id, step: str):
+    object = get_object_or_404(self.model, id=object_id)
+    instances = []
+    for admin_class in self.get_admin_tabs(request, object):
+        instance = admin_class(admin_class.model or self.model, self.admin_site)
+        instance.parent_object = object
+        instance.parent_model = self.model
+        instances.append(instance)
+    step_map = {step_admin.get_tab_slug(): step_admin for step_admin in instances}
+    step_admin = step_map.get(step)
+    if not step_admin:
+        raise Http404(f"Tab '{step}' not found")
+    return step_admin
+```
+
+## How It Works
+
+### Tab Orchestration Flow
+
+1. **Registration**: You define tabs in the `admin_tabs` list
+2. **URL Setup**: `TabbedModelAdmin` generates custom URLs for tab navigation
+3. **Object Access**: When a user accesses an object, they're redirected to the initial tab
+4. **Tab Rendering**: Each tab receives the parent object context and renders its content
+5. **Navigation**: Users can switch between tabs, with the URL reflecting the current tab
+
+### URL Routing
+
+`TabbedModelAdmin` automatically generates these URL patterns:
+
+| URL Pattern | Purpose | URL Name |
+|-------------|---------|----------|
+| `{id}/tabs/{step}/` | Display a tab | `{app}_{model}_step` |
+| `{id}/tabs/{step}/add/` | Add nested object | `{app}_{model}_tab_add` |
+| `{id}/tabs/{step}/{nested_id}/change/` | Edit nested object | `{app}_{model}_tab_change` |
+| `{id}/tabs/{step}/{nested_id}/delete/` | Delete nested object | `{app}_{model}_tab_delete` |
+
+<Note>
+The URL routing is handled automatically. You don't need to define any custom URLs in your `urls.py`.
+</Note>
+
+### Tab Registration
+
+Tabs are registered when the admin class is instantiated. Here's how the system connects everything:
+
+```python
+# The tab classes are defined separately
+class PollAdminStep(AdminTab, admin.ModelAdmin):
+    admin_tab_name = "Poll"
+    fields = ("question",)
+
+class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Answers"
+    model = Answer
+    fk_field = "choice__poll"
+    parent_model = Poll
+
+# TabbedModelAdmin brings them together
+@admin.register(Poll)
+class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [PollAdminStep, AnswerAdmin]
+```
+
+When a user accesses a Poll object:
+
+1. `TabbedModelAdmin` instantiates each tab class
+2. Sets `parent_object` and `parent_model` on each tab instance
+3. Generates the appropriate URLs for the current tab
+4. Renders the tab with full context
+
+## Complete Setup Example
+
+Here's a comprehensive example showing all three classes working together:
+
+```python
+from django.contrib import admin
+from django_admin_tabs import AdminTab, AdminChangeListTab, TabbedModelAdmin
+from .models import Poll, Choice, Answer
+
+# Define an inline for the main poll form
+class ChoiceInline(admin.StackedInline):
+    model = Choice
+    extra = 0
+
+# Tab 1: Main poll editing form
+class PollAdminStep(AdminTab, admin.ModelAdmin):
+    """First tab showing the poll question and choices."""
+    admin_tab_name = "Poll"
+    fields = ("question",)
+    inlines = (ChoiceInline,)
+
+# Tab 2: Nested changelist of answers
+@admin.register(Answer)
+class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+    """Second tab showing all answers for this poll."""
+    admin_tab_name = "Answers"
+    model = Answer
+    fk_field = "choice__poll"
+    parent_model = Poll
+    
+    date_hierarchy = "timestamp"
+    list_display = ("timestamp", "choice")
+    list_filter = ("choice",)
+    
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        # Only show choices from the current poll
+        form.base_fields["choice"].queryset = self.parent_object.choice_set.all()
+        return form
+
+# The main admin that ties everything together
+@admin.register(Poll)
+class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    """The admin class that renders the tabbed interface.
+    
+    All standard Django admin configurations still work here.
+    """
+    admin_tabs = [
+        PollAdminStep,  # First tab
+        AnswerAdmin,    # Second tab
+    ]
+    
+    # Standard Django admin settings still work
+    list_display = ("question",)
+    search_fields = ("question",)
+```
+
+With this setup:
+
+- The Poll list view shows all polls with search functionality
+- Clicking a poll opens the first tab ("Poll") showing the question and inline choices
+- Clicking the "Answers" tab shows a filtered changelist of all answers for that poll
+- Adding a new answer automatically associates it with the current poll
+- All navigation happens without leaving the poll's admin page
+
+## Advanced Usage
+
+### Dynamic Tab Visibility
+
+Show different tabs based on user permissions or object state:
+
+```python
+class DocumentAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [
+        BasicInfoTab,
+        ContentTab,
+        ReviewTab,
+        PublishTab,
+    ]
+    
+    def get_admin_tabs(self, request, object_id):
+        obj = self.model.objects.get(id=object_id)
+        tabs = [BasicInfoTab, ContentTab]
+        
+        # Only show review tab if document is submitted
+        if obj.status in ["submitted", "reviewed"]:
+            tabs.append(ReviewTab)
+        
+        # Only show publish tab to staff
+        if request.user.is_staff:
+            tabs.append(PublishTab)
+        
+        return tabs
+```
+
+### Custom Initial Tab
+
+Redirect to a specific tab based on context:
+
+```python
+class OrderAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [DetailsTab, ItemsTab, ShippingTab]
+    
+    def get_initial_tab(self, request, object_id):
+        obj = self.model.objects.get(id=object_id)
+        
+        # If order is unfulfilled, start with items tab
+        if not obj.is_fulfilled:
+            tab = ItemsTab
+        # If awaiting shipment, start with shipping tab
+        elif obj.status == "awaiting_shipment":
+            tab = ShippingTab
+        else:
+            tab = DetailsTab
+        
+        return tab(tab.model or self.model, self.admin_site)
+```
+
+### Custom Tab Path
+
+Change the URL segment if "tabs" conflicts with your URLs:
+
+```python
+class MyAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    tabs_path = "sections"  # URLs become /admin/app/model/1/sections/tab-name/
+    admin_tabs = [Tab1, Tab2]
+```
+
+## Context Available in Tabs
+
+Each tab receives context from `TabbedModelAdmin`:
+
+```python
+def get_context(self, request, instance, step):
+    return dict(
+        instance_meta_opts=instance._meta,
+        admin_tabs=[...],  # List of all tab instances
+        current_tab=step,  # The current tab slug
+        anchor=instance,   # The parent object
+    )
+```
+
+You can access this in tab templates to customize rendering:
+
+```django
+{% for tab in admin_tabs %}
+    <li class="{% if tab.get_tab_slug == current_tab %}active{% endif %}">
+        <a href="{% url 'admin:app_model_step' anchor.id tab.get_tab_slug %}">
+            {{ tab.get_tab_name }}
+        </a>
+    </li>
+{% endfor %}
+```
+
+## Integration with Standard Django Admin
+
+<Info>
+`TabbedModelAdmin` is designed to work seamlessly with all standard Django admin features.
+</Info>
+
+You can still use:
+
+- `list_display`, `list_filter`, `search_fields` for the changelist
+- `fieldsets`, `fields`, `exclude` for the default form (though tabs usually replace this)
+- `actions` for bulk operations
+- `inlines` within individual tabs
+- Custom admin actions and methods
+- Permissions and `has_*_permission` methods
+
+```python
+@admin.register(Article)
+class ArticleAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [ContentTab, MetadataTab, CommentsTab]
+    
+    # Standard Django admin configurations
+    list_display = ("title", "author", "status", "created")
+    list_filter = ("status", "created")
+    search_fields = ("title", "content")
+    date_hierarchy = "created"
+    
+    actions = ["make_published"]
+    
+    def make_published(self, request, queryset):
+        queryset.update(status="published")
+    make_published.short_description = "Mark selected articles as published"
+```
+
+## Related Concepts
+
+- [AdminTab](/concepts/admin-tab) - Create custom form tabs
+- [AdminChangeListTab](/concepts/admin-changelist-tab) - Create nested changelist tabs

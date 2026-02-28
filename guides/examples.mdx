@@ -1,0 +1,233 @@
+---
+title: Real-World Examples
+description: Complete examples of Django Admin Tabs in action with the Poll/Choice/Answer voting system
+---
+
+## Poll Voting System Example
+
+The example application demonstrates a complete voting system with Polls, Choices, and Answers. This shows how to organize related models into tabbed interfaces with nested changelists.
+
+### Models Structure
+
+The example uses three related models that form a hierarchical relationship:
+
+```python
+from django.db import models
+
+class Poll(models.Model):
+    question = models.CharField(max_length=200)
+
+    def __str__(self):
+        return self.question
+
+
+class Choice(models.Model):
+    poll = models.ForeignKey(Poll, on_delete=models.CASCADE)
+    text = models.CharField(max_length=200)
+
+    def __str__(self):
+        return f"{self.poll} {self.text}"
+
+
+class Answer(models.Model):
+    timestamp = models.DateTimeField(auto_now=True, auto_created=True)
+    choice = models.ForeignKey(Choice, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"Answer: {self.choice}"
+```
+
+The relationship is: **Poll → Choice → Answer**. Each Poll has multiple Choices, and each Choice can have multiple Answers.
+
+### Complete Admin Configuration
+
+Here's the complete admin setup from `example/polls/admin.py`:
+
+```python
+from django.contrib import admin
+
+from django_admin_tabs import (
+    AdminChangeListTab,
+    AdminTab,
+    TabbedModelAdmin,
+)
+from .models import Answer, Choice, Poll
+
+
+class ChoiceInline(admin.StackedInline):
+    model = Choice
+    extra = 0
+
+
+class PollAdminStep(AdminTab, admin.ModelAdmin):
+    admin_tab_name = "Poll"
+    fields = ("question",)
+    inlines = (ChoiceInline,)
+
+
+@admin.register(Answer)
+class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Answers"
+    model = Answer
+    fk_field = "choice__poll"
+    parent_model = Poll
+    date_hierarchy = "timestamp"
+    list_display = (
+        "timestamp",
+        "choice",
+    )
+    list_filter = ("choice",)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.base_fields["choice"].queryset = self.parent_object.choice_set.all()
+        return form
+
+
+@admin.register(Poll)
+class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    """The admin class that will render the change form with steps.
+
+    All configuration for changelist are still valid.
+    """
+
+    admin_tabs = [
+        PollAdminStep,
+        AnswerAdmin,
+    ]
+```
+
+## Understanding the Components
+
+<Steps>
+  <Step title="Create the Poll Tab">
+    The `PollAdminStep` class extends both `AdminTab` and `admin.ModelAdmin`. It displays the poll question and includes an inline for managing choices.
+
+    ```python
+    class PollAdminStep(AdminTab, admin.ModelAdmin):
+        admin_tab_name = "Poll"  # Name shown in tab
+        fields = ("question",)    # Fields to display
+        inlines = (ChoiceInline,) # Inline for related choices
+    ```
+  </Step>
+
+  <Step title="Create the Nested Changelist">
+    The `AnswerAdmin` class creates a nested changelist showing all answers related to the poll. It uses `AdminChangeListTab` to indicate it's a changelist tab.
+
+    ```python
+    @admin.register(Answer)
+    class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+        admin_tab_name = "Answers"    # Tab name
+        model = Answer                 # Model to display
+        fk_field = "choice__poll"      # Path to parent (through Choice to Poll)
+        parent_model = Poll            # The parent model
+    ```
+
+    <Note>
+      The `fk_field` uses Django's double-underscore syntax to traverse relationships. Here, `"choice__poll"` means "follow the choice foreign key, then the poll foreign key".
+    </Note>
+  </Step>
+
+  <Step title="Combine Tabs in Main Admin">
+    The `PollAdmin` class uses `TabbedModelAdmin` to combine all tabs into a single interface.
+
+    ```python
+    @admin.register(Poll)
+    class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+        admin_tabs = [
+            PollAdminStep,
+            AnswerAdmin,
+        ]
+    ```
+  </Step>
+</Steps>
+
+## Advanced Pattern: Accessing parent_object
+
+One powerful feature is the ability to access the parent object in nested changelists using `self.parent_object`. This allows you to filter form choices based on the parent.
+
+### Filtering Choices in Forms
+
+In the example, the Answer form only shows choices that belong to the current poll:
+
+```python
+def get_form(self, request, obj=None, **kwargs):
+    # Use self.parent_object to access the main admin instance
+    form = super().get_form(request, obj, **kwargs)
+    form.base_fields['choice'].queryset = self.parent_object.choice_set.all()
+    return form
+```
+
+<Tip>
+  `self.parent_object` contains the instance of the parent model (Poll in this case). You can use it to:
+  - Filter querysets in forms
+  - Customize list_display based on parent attributes
+  - Set default values for new objects
+  - Add context-specific validation
+</Tip>
+
+### Example: Setting Default Values
+
+You can also use `parent_object` to set intelligent defaults:
+
+```python
+def get_changeform_initial_data(self, request):
+    initial = super().get_changeform_initial_data(request)
+    # Get the first choice of this poll as default
+    first_choice = self.parent_object.choice_set.first()
+    if first_choice:
+        initial['choice'] = first_choice.pk
+    return initial
+```
+
+## Common Patterns
+
+### Multiple Nested Changelists
+
+You can add multiple nested changelists to a single parent:
+
+```python
+class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [
+        PollAdminStep,       # Edit tab
+        AnswerAdmin,         # Nested changelist
+        ChoiceStatsAdmin,    # Another nested changelist
+        AuditLogAdmin,       # Yet another nested changelist
+    ]
+```
+
+### Using Regular Django Admin Features
+
+<Note>
+  All standard Django admin features work with nested changelists: `date_hierarchy`, `list_filter`, `list_display`, `search_fields`, etc.
+</Note>
+
+```python
+class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Answers"
+    model = Answer
+    fk_field = "choice__poll"
+    parent_model = Poll
+    
+    # All standard admin features work
+    date_hierarchy = "timestamp"
+    list_display = ("timestamp", "choice", "get_poll")
+    list_filter = ("choice", "timestamp")
+    search_fields = ("choice__text", "choice__poll__question")
+    
+    def get_poll(self, obj):
+        return obj.choice.poll
+    get_poll.short_description = "Poll"
+```
+
+### Deep Relationship Paths
+
+The `fk_field` can traverse multiple levels of relationships:
+
+```python
+# For deeply nested models
+class CommentAdmin(AdminChangeListTab, admin.ModelAdmin):
+    model = Comment
+    fk_field = "answer__choice__poll"  # Three levels deep!
+    parent_model = Poll
+```

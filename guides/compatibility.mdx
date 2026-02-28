@@ -1,0 +1,167 @@
+---
+title: Compatibility
+description: Python and Django version requirements, third-party library compatibility, and known limitations
+---
+
+## Python Version Requirements
+
+Django Admin Tabs requires **Python 3.8 or higher**.
+
+<CodeGroup>
+```bash pip
+pip install django-admin-tabs
+```
+
+```bash poetry
+poetry add django-admin-tabs
+```
+</CodeGroup>
+
+### Supported Python Versions
+
+| Python Version | Support Status |
+|----------------|----------------|
+| 3.8            | ✅ Supported   |
+| 3.9            | ✅ Supported   |
+| 3.10           | ✅ Supported   |
+| 3.11           | ✅ Supported   |
+| 3.7 or lower   | ❌ Not supported |
+
+## Django Version Requirements
+
+Django Admin Tabs requires **Django 3.2 or higher**.
+
+### Supported Django Versions
+
+| Django Version | Support Status |
+|----------------|----------------|
+| 3.2 LTS        | ✅ Supported   |
+| 4.0            | ✅ Supported   |
+| 4.1            | ✅ Supported   |
+| 4.2 LTS        | ✅ Supported   |
+| 5.0            | ✅ Supported   |
+| < 3.2          | ❌ Not supported |
+
+<Note>
+  Django Admin Tabs is tested against both LTS (Long Term Support) releases and intermediate versions to ensure broad compatibility.
+</Note>
+
+## Installation Requirements
+
+After installing django-admin-tabs, add it to your Django project's `INSTALLED_APPS`:
+
+```python settings.py
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    
+    # Add django_admin_tabs
+    "django_admin_tabs",
+    
+    # Your apps
+    "myapp",
+]
+```
+
+<Tip>
+  Django Admin Tabs comes with built-in templates and CSS static files. No additional configuration is needed after adding it to `INSTALLED_APPS`.
+</Tip>
+
+## Third-Party Library Compatibility
+
+### django-object-actions
+
+Django Admin Tabs is **fully compatible** with [django-object-actions](https://pypi.org/project/django-object-actions/), which adds object-level and model-level actions to the Django admin.
+
+```python
+from django.contrib import admin
+from django_object_actions import DjangoObjectActions
+from django_admin_tabs import AdminTab, TabbedModelAdmin
+
+class MyModelAdminStep(AdminTab, DjangoObjectActions, admin.ModelAdmin):
+    admin_tab_name = "Details"
+    change_actions = ("custom_action",)
+    
+    def custom_action(self, request, obj):
+        # Your custom action logic
+        pass
+
+class MyModelAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [MyModelAdminStep]
+```
+
+<Note>
+  When combining multiple mixins, place them in this order: `AdminTab` or `AdminChangeListTab`, then third-party mixins, then `admin.ModelAdmin`.
+</Note>
+
+### Other Admin Extensions
+
+Django Admin Tabs should work with most Django admin extensions that:
+- Use standard Django admin mixins
+- Don't heavily modify the admin templates
+- Don't conflict with the tabbed navigation structure
+
+If you encounter compatibility issues with other libraries, please [report them on GitHub](https://github.com/mehmetakyuz/django-admin-tabs/issues).
+
+## Known Limitations
+
+### Delete Button on Nested Changelists
+
+The delete button does not work for individual objects in nested changelists and is therefore hidden.
+
+<Warning>
+  The delete button is hidden on nested changelist detail pages. However, you can still delete objects using the changelist bulk action "Delete selected items".
+</Warning>
+
+**Workaround:**
+
+To delete objects from nested changelists:
+
+<Steps>
+  <Step title="Navigate to the nested changelist tab">
+    Go to the parent object's admin page and click on the nested changelist tab.
+  </Step>
+  
+  <Step title="Select objects to delete">
+    Check the boxes next to the objects you want to delete.
+  </Step>
+  
+  <Step title="Use the bulk delete action">
+    Select "Delete selected items" from the action dropdown and click "Go".
+  </Step>
+</Steps>
+
+### Why This Limitation Exists
+
+The delete button limitation exists because:
+- Nested changelists use a different URL structure than regular admin pages
+- The delete confirmation page expects a standard admin URL pattern
+- Maintaining the proper redirect chain after deletion is complex in nested contexts
+
+<Tip>
+  This limitation only affects the delete button on individual object pages. All other admin functionality, including list filters, search, and bulk actions, works as expected.
+</Tip>
+
+## Browser Compatibility
+
+Django Admin Tabs uses standard CSS (no JavaScript) and is compatible with all modern browsers that Django admin supports:
+
+- Chrome/Edge (latest)
+- Firefox (latest)
+- Safari (latest)
+- Opera (latest)
+
+## Database Compatibility
+
+Django Admin Tabs works with any database backend supported by Django:
+
+- PostgreSQL
+- MySQL/MariaDB
+- SQLite
+- Oracle
+
+No database-specific features are used, ensuring broad compatibility.

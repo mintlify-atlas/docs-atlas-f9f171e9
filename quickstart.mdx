@@ -1,80 +1,286 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Build your first tabbed admin interface with Django Admin Tabs
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
+This guide walks you through creating a complete tabbed admin interface for a polling application. You'll learn how to use `AdminTab`, `AdminChangeListTab`, and `TabbedModelAdmin` to organize your admin interface.
 
-### Step 1: Set up your local environment
+## Example Application
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+We'll build an admin interface for a simple polling app with three models:
 
-### Step 2: Deploy your changes
+- **Poll**: Contains a question
+- **Choice**: Multiple choice options for each poll
+- **Answer**: User responses to poll choices
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+## Step-by-Step Guide
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Steps>
+  <Step title="Define your models">
+    First, create your Django models:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```python models.py
+    from django.db import models
 
-### Step 3: Go live
+    class Poll(models.Model):
+        question = models.CharField(max_length=200)
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+        def __str__(self):
+            return self.question
 
-## Next steps
+    class Choice(models.Model):
+        poll = models.ForeignKey(Poll, on_delete=models.CASCADE)
+        text = models.CharField(max_length=200)
 
-Now that you have your docs running, explore these key features:
+        def __str__(self):
+            return f"{self.poll} {self.text}"
+
+    class Answer(models.Model):
+        timestamp = models.DateTimeField(auto_now=True, auto_created=True)
+        choice = models.ForeignKey(Choice, on_delete=models.CASCADE)
+
+        def __str__(self):
+            return f"Answer: {self.choice}"
+    ```
+  </Step>
+
+  <Step title="Import required classes">
+    In your `admin.py`, import the necessary Django Admin Tabs classes:
+
+    ```python admin.py
+    from django.contrib import admin
+    from django_admin_tabs import (
+        AdminChangeListTab,
+        AdminTab,
+        TabbedModelAdmin,
+    )
+    from .models import Answer, Choice, Poll
+    ```
+  </Step>
+
+  <Step title="Create an inline for related objects">
+    Define a standard Django inline for the Choice model:
+
+    ```python admin.py
+    class ChoiceInline(admin.StackedInline):
+        model = Choice
+        extra = 0
+    ```
+
+    This inline will be displayed within the Poll tab.
+  </Step>
+
+  <Step title="Create an AdminTab for the main form">
+    Create an `AdminTab` class to display the poll form:
+
+    ```python admin.py
+    class PollAdminStep(AdminTab, admin.ModelAdmin):
+        admin_tab_name = "Poll"
+        fields = ("question",)
+        inlines = (ChoiceInline,)
+    ```
+
+    <Note>
+      `AdminTab` inherits from `admin.ModelAdmin`, so you can use all standard Django admin options like `fields`, `fieldsets`, `inlines`, `readonly_fields`, etc.
+    </Note>
+  </Step>
+
+  <Step title="Create an AdminChangeListTab for nested objects">
+    Create an `AdminChangeListTab` to display answers related to the poll:
+
+    ```python admin.py
+    @admin.register(Answer)
+    class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+        admin_tab_name = "Answers"
+        model = Answer
+        fk_field = "choice__poll"
+        parent_model = Poll
+        date_hierarchy = "timestamp"
+        list_display = (
+            "timestamp",
+            "choice",
+        )
+        list_filter = ("choice",)
+
+        def get_form(self, request, obj=None, **kwargs):
+            # Use self.parent_object to access the main admin instance
+            form = super().get_form(request, obj, **kwargs)
+            form.base_fields['choice'].queryset = self.parent_object.choice_set.all()
+            return form
+    ```
+
+    <Tip>
+      The `fk_field` supports Django ORM path syntax (e.g., `"choice__poll"`), allowing you to filter through multiple relationships.
+    </Tip>
+
+    **Key attributes explained:**
+
+    - `admin_tab_name`: The display name for the tab
+    - `model`: The model this changelist displays
+    - `fk_field`: The relationship path to filter objects by the parent
+    - `parent_model`: The model of the parent object (Poll)
+    - `parent_object`: Available at runtime to access the current parent instance
+  </Step>
+
+  <Step title="Create the TabbedModelAdmin">
+    Finally, create the main admin class that ties everything together:
+
+    ```python admin.py
+    @admin.register(Poll)
+    class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+        admin_tabs = [
+            PollAdminStep,
+            AnswerAdmin,
+        ]
+    ```
+
+    The `admin_tabs` list defines which tabs appear and in what order.
+  </Step>
+
+  <Step title="Run migrations and test">
+    Apply migrations and start your development server:
+
+    ```bash
+    python manage.py makemigrations
+    python manage.py migrate
+    python manage.py runserver
+    ```
+
+    Navigate to `/admin/` and create a new Poll. You'll see:
+
+    1. **Poll tab**: Contains the question field and choice inlines
+    2. **Answers tab**: Shows a filtered changelist of all answers for this poll
+  </Step>
+</Steps>
+
+## Complete Example
+
+Here's the complete `admin.py` file:
+
+```python admin.py
+from django.contrib import admin
+
+from django_admin_tabs import (
+    AdminChangeListTab,
+    AdminTab,
+    TabbedModelAdmin,
+)
+from .models import Answer, Choice, Poll
+
+
+class ChoiceInline(admin.StackedInline):
+    model = Choice
+    extra = 0
+
+
+class PollAdminStep(AdminTab, admin.ModelAdmin):
+    admin_tab_name = "Poll"
+    fields = ("question",)
+    inlines = (ChoiceInline,)
+
+
+@admin.register(Answer)
+class AnswerAdmin(AdminChangeListTab, admin.ModelAdmin):
+    admin_tab_name = "Answers"
+    model = Answer
+    fk_field = "choice__poll"
+    parent_model = Poll
+    date_hierarchy = "timestamp"
+    list_display = (
+        "timestamp",
+        "choice",
+    )
+    list_filter = ("choice",)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.base_fields["choice"].queryset = self.parent_object.choice_set.all()
+        return form
+
+
+@admin.register(Poll)
+class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    """The admin class that will render the change form with tabs.
+
+    All configuration for changelist are still valid.
+    """
+
+    admin_tabs = [
+        PollAdminStep,
+        AnswerAdmin,
+    ]
+```
+
+## Visual Result
+
+When you edit a Poll in the admin, you'll see a tabbed interface:
+
+### AdminTab Example
+
+<img src="/assets/tab.png" alt="Admin tab showing poll form with choice inlines" />
+
+The first tab displays the poll question field with inline choices.
+
+### AdminChangeListTab Example
+
+<img src="/assets/changelist.png" alt="Admin changelist tab showing filtered answers" />
+
+The second tab displays a filtered changelist showing only answers related to this specific poll.
+
+## Key Concepts
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Independent Loading" icon="arrows-rotate">
+    Each tab loads and saves independently at its own URL. Changes in one tab don't affect others until saved.
+  </Card>
+  <Card title="Filtered Changelists" icon="filter">
+    `AdminChangeListTab` automatically filters the queryset to show only objects related to the parent instance.
+  </Card>
+  <Card title="Standard Admin Features" icon="check">
+    Use all Django admin features: `fieldsets`, `inlines`, `list_display`, `list_filter`, `search_fields`, and more.
+  </Card>
+  <Card title="Access Parent Object" icon="arrow-up">
+    Within `AdminChangeListTab`, use `self.parent_object` to access the parent instance in methods like `get_form()` or `get_queryset()`.
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Known Limitations
+
+<Warning>
+  The delete button does not work for nested changelists and is therefore hidden. You can still delete objects using the changelist action.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="AdminTab Concepts"
+    icon="window"
+    href="/concepts/admin-tab"
+  >
+    Learn more about AdminTab and how to customize tabs
+  </Card>
+  <Card
+    title="AdminChangeListTab Concepts"
+    icon="list"
+    href="/concepts/admin-changelist-tab"
+  >
+    Dive deeper into nested changelists and filtering
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/admin-tab"
+  >
+    Explore the complete API reference for all classes
+  </Card>
+  <Card
+    title="Examples"
+    icon="lightbulb"
+    href="/guides/examples"
+  >
+    See more real-world examples and use cases
+  </Card>
+</CardGroup>

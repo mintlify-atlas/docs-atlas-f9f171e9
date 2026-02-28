@@ -1,0 +1,156 @@
+---
+title: AdminTab
+description: Create custom tabbed interfaces for Django admin change forms
+---
+
+## What is AdminTab?
+
+`AdminTab` is a base class that extends Django's `ModelAdmin` to create custom tabs within a parent model's admin interface. It allows you to organize complex admin interfaces by splitting functionality across multiple tabs, each displaying a different view or form for the same or related models.
+
+<Info>
+`AdminTab` inherits from `admin.ModelAdmin`, so you can use all standard Django admin features like `fields`, `inlines`, `fieldsets`, and `list_display`.
+</Info>
+
+## When to Use AdminTab
+
+Use `AdminTab` when you need to:
+
+- Display different forms or fieldsets for the same model in separate tabs
+- Create multiple views of the same object with different configurations
+- Organize complex admin forms into logical sections
+- Provide alternative editing interfaces for the same model
+
+<Tip>
+For displaying related models in nested changelists, use `AdminChangeListTab` instead.
+</Tip>
+
+## Key Attributes
+
+<ParamField path="admin_tab_name" type="str" default="None">
+  The display name for the tab in the admin interface. If not specified, the class name will be used.
+</ParamField>
+
+<ParamField path="model" type="Model" default="None">
+  Optionally specify a different model for this tab. If not specified, the parent model from `TabbedModelAdmin` will be used.
+</ParamField>
+
+<ParamField path="change_form_template" type="str" default="admin/django_admin_tabs/tab_change_form.html">
+  The template used to render the change form for this tab. The default template includes tab navigation.
+</ParamField>
+
+<ParamField path="change_list_template" type="str" default="admin/django_admin_tabs/tab_change_list.html">
+  The template used if this tab needs to display a list view.
+</ParamField>
+
+## Key Methods
+
+### get_tab_name()
+
+Returns the display name for the tab. Falls back to the class name if `admin_tab_name` is not set.
+
+```python
+def get_tab_name(self):
+    return self.admin_tab_name or self.__class__.__name__
+```
+
+### get_tab_slug()
+
+Returns a URL-safe slug version of the tab name, used for routing.
+
+```python
+def get_tab_slug(self):
+    return force_str(slugify(self.get_tab_name()))
+```
+
+### get_model_perms(request)
+
+Overridden to return an empty dictionary, which hides this admin class from the Django admin index page.
+
+<Note>
+Tabs are not meant to be accessed directly from the admin index. They only appear within the context of a `TabbedModelAdmin` parent.
+</Note>
+
+## How It Works
+
+When you create an `AdminTab` subclass:
+
+1. It's registered in a `TabbedModelAdmin`'s `admin_tabs` list
+2. The tab is rendered as part of the parent model's change view
+3. URL routing is handled automatically by `TabbedModelAdmin`
+4. The tab receives the parent object context and can display custom forms/fields
+
+## Code Example
+
+Here's a real example from the Django Admin Tabs source code:
+
+```python
+from django.contrib import admin
+from django_admin_tabs import AdminTab, TabbedModelAdmin
+from .models import Poll, Choice
+
+class ChoiceInline(admin.StackedInline):
+    model = Choice
+    extra = 0
+
+class PollAdminStep(AdminTab, admin.ModelAdmin):
+    """A tab for editing the main Poll fields."""
+    admin_tab_name = "Poll"
+    fields = ("question",)
+    inlines = (ChoiceInline,)
+
+@admin.register(Poll)
+class PollAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [
+        PollAdminStep,
+        # Additional tabs...
+    ]
+```
+
+In this example:
+
+- `PollAdminStep` is an `AdminTab` that displays the Poll's question field and inline choices
+- The `admin_tab_name` is set to "Poll" for display purposes
+- The tab includes Django's standard inline functionality
+- It's registered with `PollAdmin` to appear as a tab in the Poll admin interface
+
+## Use Cases
+
+### Multiple Form Views
+
+Create different tabs showing different fields of the same model:
+
+```python
+class BasicInfoTab(AdminTab, admin.ModelAdmin):
+    admin_tab_name = "Basic Info"
+    fields = ("name", "email", "phone")
+
+class AdvancedSettingsTab(AdminTab, admin.ModelAdmin):
+    admin_tab_name = "Advanced Settings"
+    fields = ("api_key", "webhook_url", "rate_limit")
+```
+
+### Custom Fieldsets
+
+Organize complex models with different fieldset configurations per tab:
+
+```python
+class ProfileTab(AdminTab, admin.ModelAdmin):
+    admin_tab_name = "Profile"
+    fieldsets = (
+        ("Personal Information", {
+            "fields": ("first_name", "last_name", "bio")
+        }),
+        ("Social Media", {
+            "fields": ("twitter", "linkedin", "github")
+        }),
+    )
+```
+
+<Warning>
+Remember that `AdminTab` displays forms for the parent model by default. If you need to show a list of related objects, use `AdminChangeListTab` instead.
+</Warning>
+
+## Related Concepts
+
+- [AdminChangeListTab](/concepts/admin-changelist-tab) - For nested changelists of related models
+- [TabbedModelAdmin](/concepts/tabbed-model-admin) - The parent admin class that orchestrates tabs

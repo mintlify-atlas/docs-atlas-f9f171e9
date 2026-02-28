@@ -1,0 +1,332 @@
+---
+title: AdminChangeListTab
+description: API reference for the AdminChangeListTab class that provides nested changelist views within Django admin tabs.
+---
+
+## Class Signature
+
+```python
+class AdminChangeListTab
+```
+
+`AdminChangeListTab` provides a nested changelist interface within a tab, allowing you to display and manage related objects inline. Unlike `AdminTab`, it shows a list of related objects rather than form fields.
+
+## Class Attributes
+
+<ParamField path="admin_tab_name" type="str | None" default="None">
+  Optionally specify a custom display name for this admin tab. If not provided, the class name will be used.
+</ParamField>
+
+<ParamField path="parent_model" type="Model | None" default="None">
+  The parent model that this changelist tab is nested under. Set automatically by `TabbedModelAdmin`.
+</ParamField>
+
+<ParamField path="parent_object" type="Model | None" default="None">
+  The specific instance of the parent model being viewed. Set automatically by `TabbedModelAdmin`.
+</ParamField>
+
+<ParamField path="fk_field" type="str | None" default="None">
+  The field path to filter the queryset for the changelist given the parent_object. Can use full Django ORM paths (e.g., `"product"` or `"order__customer"`). For more advanced queryset filtering, override `get_queryset()`.
+</ParamField>
+
+<ParamField path="ct_field" type="str" default="'content_type'">
+  The ContentType field name when using generic foreign keys. Only used if `fk_field` is not set.
+</ParamField>
+
+<ParamField path="ct_fk_field" type="str" default="'object_id'">
+  The object ID field name when using generic foreign keys. Only used if `fk_field` is not set.
+</ParamField>
+
+<ParamField path="change_list_bulk_form" type="Form | None" default="None">
+  Optional form class for bulk operations on the changelist. When provided, a bulk action form is displayed below the changelist.
+</ParamField>
+
+<ParamField path="add_form_template" type="str" default="'admin/django_admin_tabs/tab_change_form.html'">
+  The template used for rendering the add form within the nested changelist.
+</ParamField>
+
+<ParamField path="change_form_template" type="str" default="'admin/django_admin_tabs/tab_change_list_change.html'">
+  The template used for rendering the change form within the nested changelist.
+</ParamField>
+
+<ParamField path="change_list_template" type="str" default="'admin/django_admin_tabs/tab_change_list.html'">
+  The template used for rendering the changelist within the tab.
+</ParamField>
+
+## Methods
+
+### get_tab_name()
+
+```python
+def get_tab_name(self)
+```
+
+Returns the display name for this admin tab.
+
+**Returns:** `str` - The tab name from `admin_tab_name` if set, otherwise the class name.
+
+---
+
+### get_tab_slug()
+
+```python
+def get_tab_slug(self)
+```
+
+Returns a URL-safe slug for this admin tab, used in URL routing.
+
+**Returns:** `str` - A slugified version of the tab name.
+
+---
+
+### get_queryset()
+
+```python
+def get_queryset(self, request)
+```
+
+Returns the filtered queryset for the nested changelist based on the parent object.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+
+**Returns:** `QuerySet` - Filtered queryset containing only objects related to the parent object
+
+**Behavior:**
+- If `fk_field` is set, filters by that foreign key relationship
+- Otherwise, uses ContentType generic foreign key with `ct_field` and `ct_fk_field`
+
+**Example:**
+```python
+class OrderItemsTab(AdminChangeListTab, admin.ModelAdmin):
+    model = OrderItem
+    fk_field = "order"  # Filter OrderItems by order foreign key
+```
+
+---
+
+### save_model()
+
+```python
+def save_model(self, request, obj, form, change)
+```
+
+Saves the model instance and automatically sets the relationship to the parent object.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `obj` - The model instance being saved
+- `form` - The ModelForm instance
+- `change` (`bool`) - True if updating existing object, False if creating new
+
+<Note>
+  This method automatically handles setting the foreign key or generic foreign key relationship to the parent object.
+</Note>
+
+---
+
+### get_changelist()
+
+```python
+def get_changelist(self, request, **kwargs)
+```
+
+Returns a custom ChangeList class with modified URL routing for nested objects.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `**kwargs` - Additional keyword arguments
+
+**Returns:** `type` - A ChangeList subclass with custom `url_for_result()` method
+
+---
+
+### get_changelist_form()
+
+```python
+def get_changelist_form(self, request, **kwargs)
+```
+
+Returns the form class to use for the changelist. Delegates to the parent implementation.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `**kwargs` - Additional keyword arguments
+
+**Returns:** `type` - Form class for the changelist
+
+---
+
+### process_view()
+
+```python
+def process_view(self, request, object_id, extra_context=None)
+```
+
+Processes the view request for this tab, delegating to `changelist_view()`.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` - The ID of the parent object
+- `extra_context` (`dict | None`) - Optional additional context
+
+**Returns:** `HttpResponse`
+
+---
+
+### changelist_view()
+
+```python
+def changelist_view(self, request, object_id, extra_context=None)
+```
+
+Renders the changelist view for nested objects.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `object_id` - The ID of the parent object
+- `extra_context` (`dict | None`) - Optional additional context
+
+**Returns:** `HttpResponse`
+
+**Features:**
+- Adds "Add" button URL to context
+- Processes `change_list_bulk_form` if provided
+- Displays success messages for bulk operations
+
+---
+
+### response_add()
+
+```python
+def response_add(self, request, obj)
+```
+
+Determines the HttpResponse after adding a new nested object.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `obj` - The newly created object
+
+**Returns:** `HttpResponseRedirect`
+
+**Behavior:**
+- "Save and add another" → Redirects to add view
+- "Save as new" → Redirects to change view for new object
+- Default → Redirects to change view for new object
+
+---
+
+### response_change()
+
+```python
+def response_change(self, request, obj)
+```
+
+Determines the HttpResponse after changing a nested object.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `obj` - The modified object
+
+**Returns:** `HttpResponseRedirect`
+
+**Behavior:**
+- "Save and add another" → Redirects to add view
+- "Save and continue editing" → Redirects back to change view
+- Default → Delegates to parent implementation
+
+---
+
+### response_delete()
+
+```python
+def response_delete(self, request, obj_display, obj_id)
+```
+
+Determines the HttpResponse after deleting a nested object.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `obj_display` (`str`) - String representation of deleted object
+- `obj_id` - ID of the deleted object
+
+**Returns:** `HttpResponseRedirect` - Redirects back to the changelist tab
+
+---
+
+### response_post_save_change()
+
+```python
+def response_post_save_change(self, request, obj)
+```
+
+Determines the HttpResponse after saving changes to a nested object (alternative flow).
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `obj` - The modified object
+
+**Returns:** `HttpResponseRedirect` - Redirects back to the changelist tab
+
+---
+
+### response_post_save_add()
+
+```python
+def response_post_save_add(self, request, obj)
+```
+
+Determines the HttpResponse after adding a nested object (alternative flow).
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+- `obj` - The newly created object
+
+**Returns:** `HttpResponseRedirect` - Redirects back to the changelist tab
+
+---
+
+### get_model_perms()
+
+```python
+def get_model_perms(self, request)
+```
+
+Returns an empty dictionary to prevent this tab from appearing in the Django admin index.
+
+**Parameters:**
+- `request` - The Django HttpRequest object
+
+**Returns:** `dict` - An empty dictionary
+
+## Usage Example
+
+```python
+from django.contrib import admin
+from django_admin_tabs.admin import AdminChangeListTab, TabbedModelAdmin
+from .models import Order, OrderItem
+
+class OrderItemsTab(AdminChangeListTab, admin.ModelAdmin):
+    model = OrderItem
+    admin_tab_name = "Order Items"
+    fk_field = "order"  # Foreign key field on OrderItem
+    list_display = ['product', 'quantity', 'price']
+    
+class OrderAdmin(TabbedModelAdmin, admin.ModelAdmin):
+    admin_tabs = [OrderItemsTab]
+    
+admin.site.register(Order, OrderAdmin)
+```
+
+## Generic Foreign Key Example
+
+```python
+class CommentsTab(AdminChangeListTab, admin.ModelAdmin):
+    model = Comment
+    admin_tab_name = "Comments"
+    # Uses generic foreign key instead of fk_field
+    ct_field = "content_type"
+    ct_fk_field = "object_id"
+    list_display = ['author', 'text', 'created_at']
+```
